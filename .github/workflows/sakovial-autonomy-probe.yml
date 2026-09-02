@@ -1,0 +1,47 @@
+name: Sakovial autonomy probe
+
+on:
+  push:
+    branches:
+      - sakovial-autonomy-probe
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Probe n8n API without exposing secrets
+        shell: bash
+        env:
+          N8N_API_KEY_A: ${{ secrets.N8N_API_KEY }}
+          N8N_API_KEY_B: ${{ secrets.N8N_KEY }}
+          N8N_API_KEY_C: ${{ secrets.N8N_TOKEN }}
+          N8N_API_KEY_D: ${{ secrets.N8N_API_TOKEN }}
+        run: |
+          set +x
+          key=""
+          label=""
+          for candidate in A B C D; do
+            var="N8N_API_KEY_${candidate}"
+            value="${!var}"
+            if [ -n "$value" ]; then
+              key="$value"
+              label="$candidate"
+              break
+            fi
+          done
+          if [ -z "$key" ]; then
+            echo "secret_present=false"
+            exit 78
+          fi
+          status=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" \
+            --header "X-N8N-API-KEY: ${key}" \
+            "https://essorys.app.n8n.cloud/api/v1/workflows?limit=1")
+          echo "secret_present=true"
+          echo "candidate=${label}"
+          echo "n8n_http_status=${status}"
+          test "$status" = "200"
